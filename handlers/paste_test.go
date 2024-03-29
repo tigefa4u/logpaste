@@ -3,7 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,6 +12,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/mtlynch/logpaste/store"
 )
+
+const MaxPasteCharacters = 2 * 1024 * 1024
 
 type mockStore struct {
 	entries map[string]string
@@ -41,8 +43,9 @@ func TestPasteGet(t *testing.T) {
 	}
 	router := mux.NewRouter()
 	s := defaultServer{
-		store:  &ds,
-		router: router,
+		store:        &ds,
+		router:       router,
+		maxCharLimit: MaxPasteCharacters,
 	}
 	s.routes()
 
@@ -80,7 +83,7 @@ func TestPasteGet(t *testing.T) {
 			if w.Code != http.StatusOK {
 				return
 			}
-			bodyBytes, err := ioutil.ReadAll(w.Body)
+			bodyBytes, err := io.ReadAll(w.Body)
 			if err != nil {
 				t.Fatalf("failed to read HTTP response body: %v", err)
 			}
@@ -129,8 +132,9 @@ func TestPastePut(t *testing.T) {
 			}
 			router := mux.NewRouter()
 			s := defaultServer{
-				store:  &ds,
-				router: router,
+				store:        &ds,
+				router:       router,
+				maxCharLimit: MaxPasteCharacters,
 			}
 			s.routes()
 
@@ -172,8 +176,9 @@ func TestPastePost(t *testing.T) {
 	}
 	router := mux.NewRouter()
 	s := defaultServer{
-		store:  &ds,
-		router: router,
+		store:        &ds,
+		router:       router,
+		maxCharLimit: MaxPasteCharacters,
 	}
 	s.routes()
 	for _, tt := range []struct {

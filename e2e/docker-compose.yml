@@ -1,14 +1,14 @@
 version: "3.2"
 services:
   test_sftp:
-    image: emberstack/sftp:build-5.0.3
+    image: emberstack/sftp:build-5.1.66-amd64
     volumes:
       - ./sftp.json:/app/config/sftp.json:ro
   logpaste:
     build:
       context: ../
     entrypoint: /app/e2e/wait-for-sftp.bash
-    command: ["test_sftp", "22", "--", "/app/docker_entrypoint"]
+    command: ["test_sftp", "22", "--", "/app/docker-entrypoint"]
     environment:
       - PORT=3333
       - DB_REPLICA_URL="sftp://dummyuser:dummypass@test_sftp"

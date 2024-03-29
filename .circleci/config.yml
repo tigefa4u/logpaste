@@ -1,8 +1,17 @@
 version: 2.1
+executors:
+  base:
+    docker:
+      - image: cimg/base:2024.02
+  go:
+    docker:
+      - image: cimg/go:1.21.1
+  node:
+    docker:
+      - image: cimg/node:20.6.1
 jobs:
   check_whitespace:
-    docker:
-      - image: cimg/base:2021.04
+    executor: base
     resource_class: small
     steps:
       - checkout
@@ -14,7 +23,7 @@ jobs:
           command: ./dev-scripts/check-trailing-newline
   check_bash:
     docker:
-      - image: koalaman/shellcheck-alpine:v0.8.0
+      - image: koalaman/shellcheck-alpine:v0.9.0
     steps:
       - run:
           name: Install dependencies needed to check out repo
@@ -37,8 +46,7 @@ jobs:
               --dialect sqlite \
               store/sqlite/migrations
   test:
-    docker:
-      - image: cimg/go:1.18.4
+    executor: go
     steps:
       - checkout
       - attach_workspace:
@@ -52,18 +60,19 @@ jobs:
           name: Verify golang formatting
           command: dev-scripts/check-go-formatting
   build_backend:
-    docker:
-      - image: cimg/go:1.18.4
+    executor: go
     steps:
       - checkout
       - attach_workspace:
           at: ./
       - run:
-          name: Compile backend
+          name: Compile production backend
           command: dev-scripts/build-backend
+      - run:
+          name: Compile dev backend
+          command: dev-scripts/build-backend dev
   check_frontend:
-    docker:
-      - image: cimg/node:16.14.2
+    executor: node
     steps:
       - checkout
       - run:
@@ -79,7 +88,8 @@ jobs:
     machine:
       # Choose an explicit machine image so that we get the latest version of
       # docker-compose.
-      image: ubuntu-2004:202010-01
+      image: ubuntu-2204:2023.10.1
+      docker_layer_caching: true
     steps:
       - checkout
       - run:
@@ -91,8 +101,8 @@ jobs:
       - store_artifacts:
           path: e2e/cypress/screenshots
   deploy:
-    machine:
-      image: ubuntu-2004:202010-01
+    executor: base
+    resource_class: small
     environment:
       APP_NAME: logpaste-com
       # The flyctl changes too much to use a specific version, so use the latest for the
@@ -111,15 +121,17 @@ jobs:
           name: Remove lines specifying target Docker image (force a build from source)
           command: sed '/^\[build\]/d' fly.toml | sed '/^ *image =/d'
       - run:
+          name: Add a custom footer to the demo site.
+          command: |
+            echo '' >> fly.toml
+            echo '[experimental]' >> fly.toml
+            echo '  cmd = ["-footer", "<h2>Notice</h2><p>This is a demo instance. Uploads are wiped every few hours.</p>"]' >> fly.toml
+      - run:
           name: Deploy logpaste to fly.io
           command: |
-            "${HOME}/.fly/bin/flyctl" deploy \
-              --local-only \
-              --env "SITE_FOOTER=<h2>Notice</h2><p>This is a demo instance. Uploads are wiped every few hours.</p>"
-
+            "${HOME}/.fly/bin/flyctl" deploy
   build_docker_images:
-    docker:
-      - image: cimg/base:stable
+    executor: base
     environment:
       BUILD_TARGETS: "linux/amd64"
     steps:
